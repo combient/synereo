@@ -62,6 +62,7 @@ import java.io.ObjectOutputStream
 import java.io.ByteArrayOutputStream
 import com.typesafe.config.{Config, ConfigObject, ConfigValue}
 import scala.collection.JavaConverters._
+import scala.collection.JavaConversions._
 
 object DSLCommLink
        extends PersistedMonadicKVDBMongoNodeScope[String,String,String,ConcreteHL.HLExpr]
@@ -530,6 +531,24 @@ trait DSLCommLinkConfiguration {
     }
     catch {
       case e : Throwable => 5672
+    }
+  }
+  def clientHostsAlt() : List[(String,Int)] = {
+    try {
+      val configObject: List[String] = evalConfig().getStringList("DSLCommLinkClientHostsAlt").toList
+      configObject.map { (s: String) =>
+        val uri = new URI("unused://" + s)
+        // TODO: find another place where Rabbit defaults are defined use them
+        val host: String = Option(uri.getHost).getOrElse("localhost")
+        val port: Int    = {
+          val u = uri.getPort
+          if (u == -1) 5672 else u
+        }
+        (host, port)
+      }
+    }
+    catch {
+      case _: Throwable => List[(String, Int)](("localhost", 5672))
     }
   }
   def clientHosts() : List[(String,Int)] = {
