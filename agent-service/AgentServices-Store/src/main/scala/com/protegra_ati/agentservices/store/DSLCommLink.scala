@@ -533,9 +533,9 @@ trait DSLCommLinkConfiguration {
       case e : Throwable => 5672
     }
   }
-  def clientHostsAlt() : List[(String,Int)] = {
+  def clientHostsNPorts() : List[(String,Int)] = {
     try {
-      val configObject: List[String] = evalConfig().getStringList("DSLCommLinkClientHostsAlt").toList
+      val configObject: List[String] = evalConfig().getStringList("DSLCommLinkClientHosts").toList
       configObject.map { (s: String) =>
         val uri = new URI("unused://" + s)
         // TODO: find another place where Rabbit defaults are defined use them
@@ -551,22 +551,10 @@ trait DSLCommLinkConfiguration {
       case _: Throwable => List[(String, Int)](("localhost", 5672))
     }
   }
-  def clientHosts() : List[(String,Int)] = {
-    try {
-      val configObject: ConfigObject = evalConfig().getObject("DSLCommLinkClientHosts")
-      val configDSLCommLinkClientHosts: Config = configObject.toConfig
-      configObject.asScala.map { (tuple: (String, ConfigValue)) =>
-        (tuple._1, configDSLCommLinkClientHosts.getInt("\"%s\"".format(tuple._1)))
-      }.toList
-    }
-    catch {
-      case _: Throwable => List[(String,Int)](("localhost", 5672))
-    }
-  }
   def serverHostName() : String = {
     try {
       evalConfig().getString( "DSLCommLinkServerHost" )
-    } 
+    }
     catch {
       case e : Throwable => "localhost"
     }
@@ -584,7 +572,7 @@ trait DSLCommLinkConfiguration {
 object DSLCommLinkCtor extends EvalConfig
 with DSLCommLinkConfiguration
 with Serializable {
-  import DSLCommLink._   
+  import DSLCommLink._
   import Being._
   import PersistedKVDBNodeFactory._
 
@@ -692,7 +680,7 @@ with Serializable {
       )
     }
   }
-  
+
 /* -------------------------------------------------------------------------- *
  * Basic ctor is the setup method
  * -------------------------------------------------------------------------- */
@@ -700,18 +688,18 @@ with Serializable {
   def setup[ReqBody <: PersistedKVDBNodeRequest, RspBody <: PersistedKVDBNodeResponse](
     localHost : String, localPort : Int,
     remoteHost : String, remotePort : Int
-  )(    
+  )(
     returnTwist : Boolean = false,
     flip : Boolean = false
   ) : Either[EvaluationRequestChannel[ReqBody,RspBody],(EvaluationRequestChannel[ReqBody,RspBody],EvaluationRequestChannel[ReqBody,RspBody])] = {
-    val ( localExchange, remoteExchange ) = 
+    val ( localExchange, remoteExchange ) =
       if ( localHost.equals( remoteHost ) && ( localPort == remotePort ) ) {
-        ( "/DSLExecProtocolLocal", "/DSLExecProtocolRemote" )     
+        ( "/DSLExecProtocolLocal", "/DSLExecProtocolRemote" )
       }
       else {
-        ( "/DSLExecProtocol", "/DSLExecProtocol" )        
+        ( "/DSLExecProtocol", "/DSLExecProtocol" )
       }
-    
+
     if ( returnTwist ) {
       Right[EvaluationRequestChannel[ReqBody,RspBody],(EvaluationRequestChannel[ReqBody,RspBody],EvaluationRequestChannel[ReqBody,RspBody])](
         (
@@ -719,7 +707,7 @@ with Serializable {
             new URI( "agent", null, localHost, localPort, localExchange, null, null ),
             new URI( "agent", null, remoteHost, remotePort, remoteExchange, null, null )
           ),
-          ptToPt[ReqBody, RspBody](           
+          ptToPt[ReqBody, RspBody](
             new URI( "agent", null, remoteHost, remotePort, remoteExchange, null, null ),
             new URI( "agent", null, localHost, localPort, localExchange, null, null )
           )
@@ -734,7 +722,7 @@ with Serializable {
             new URI( "agent", null, remoteHost, remotePort, remoteExchange, null, null )
           )
         } else {
-          ptToPt(           
+          ptToPt(
             new URI( "agent", null, remoteHost, remotePort, remoteExchange, null, null ),
             new URI( "agent", null, localHost, localPort, localExchange, null, null )
           )
@@ -746,17 +734,17 @@ with Serializable {
   def setup[ReqBody <: PersistedKVDBNodeRequest, RspBody <: PersistedKVDBNodeResponse](
     localHost : String, localPort : Int,
     remoteHostsNPorts : List[(String,Int)]
-  )(    
+  )(
     returnTwist : Boolean = false,
     flip : Boolean = false
   ) : List[Either[EvaluationRequestChannel[ReqBody,RspBody],(EvaluationRequestChannel[ReqBody,RspBody],EvaluationRequestChannel[ReqBody,RspBody])]] = {
-    for( ( remoteHost, remotePort ) <- remoteHostsNPorts ) 
+    for( ( remoteHost, remotePort ) <- remoteHostsNPorts )
     yield {
       setup[ReqBody,RspBody](
 	localHost, localPort, remoteHost, remotePort
       )( returnTwist, flip )
     }
-  }  
+  }
 
 /* -------------------------------------------------------------------------- *
  * To get a single link get the left hand value of the setup return
@@ -766,14 +754,14 @@ with Serializable {
     localHost : String = serverHostName, localPort : Int = serverPort,
     remoteHost : String = clientHostName, remotePort : Int = clientPort
   )( flip : Boolean = false ) : EvaluationRequestChannel[ReqBody,RspBody] = {
-    val Left( client ) = 
+    val Left( client ) =
       setup[ReqBody,RspBody]( localHost, localPort, remoteHost, remotePort )( false, flip )
     client
   }
 
   def link[ReqBody <: PersistedKVDBNodeRequest, RspBody <: PersistedKVDBNodeResponse](
     localHost : String = serverHostName, localPort : Int = serverPort,
-    remoteHostsNPorts : List[(String,Int)] = clientHosts
+    remoteHostsNPorts : List[(String,Int)] = clientHostsNPorts
   )( flip : Boolean = false ) : List[EvaluationRequestChannel[ReqBody,RspBody]] = {
     for( ( remoteHost, remotePort ) <- remoteHostsNPorts )
     yield {
@@ -789,20 +777,20 @@ with Serializable {
     localHost : String = serverHostName, localPort : Int = serverPort,
     remoteHost : String = clientHostName, remotePort : Int = clientPort
   ) : ( EvaluationRequestChannel[ReqBody,RspBody], EvaluationRequestChannel[ReqBody,RspBody] ) = {
-    val Right( ( client, server ) ) = 
+    val Right( ( client, server ) ) =
       setup[ReqBody,RspBody]( localHost, localPort, remoteHost, remotePort )( true )
     ( client, server )
-  }  
+  }
 
   def biLink[ReqBody <: PersistedKVDBNodeRequest, RspBody <: PersistedKVDBNodeResponse](
     localHost : String = serverHostName, localPort : Int = serverPort,
-    remoteHostsNPorts : List[(String,Int)] = clientHosts
+    remoteHostsNPorts : List[(String,Int)] = clientHostsNPorts
   ) : List[( EvaluationRequestChannel[ReqBody,RspBody], EvaluationRequestChannel[ReqBody,RspBody] )] = {
     for( ( remoteHost, remotePort ) <- remoteHostsNPorts )
     yield {
       oneBilink[ReqBody,RspBody]( localHost, localPort, remoteHost, remotePort )
     }
-  }  
+  }
 
 /* -------------------------------------------------------------------------- *
  * To get a single stdlink get the left hand value of the setup return
@@ -812,7 +800,7 @@ with Serializable {
     localHost : String = serverHostName, localPort : Int = serverPort,
     remoteHost : String = clientHostName, remotePort : Int = clientPort
   )( flip : Boolean = false ) : StdEvaluationRequestChannel = {
-    val Left( client ) = 
+    val Left( client ) =
       setup[PersistedKVDBNodeRequest,PersistedKVDBNodeResponse](
         localHost, localPort, remoteHost, remotePort
       )( false, flip )
@@ -821,13 +809,13 @@ with Serializable {
 
   def stdLink(
     localHost : String = serverHostName, localPort : Int = serverPort,
-    remoteHostsNPorts : List[(String,Int)] = clientHosts
+    remoteHostsNPorts : List[(String,Int)] = clientHostsNPorts
   )( flip : Boolean = false ) : List[StdEvaluationRequestChannel] = {
     for( ( remoteHost, remotePort ) <- remoteHostsNPorts )
     yield {
       oneStdLink( localHost, localPort, remoteHost, remotePort )( flip )
     }
-  }  
+  }
 
 /* -------------------------------------------------------------------------- *
  * To get a single stdbilink get the right hand value of the setup return
@@ -837,14 +825,14 @@ with Serializable {
     localHost : String = serverHostName, localPort : Int = serverPort,
     remoteHost : String = clientHostName, remotePort : Int = clientPort
   ) : ( StdEvaluationRequestChannel, StdEvaluationRequestChannel ) = {
-    val Right( ( client, server ) ) = 
+    val Right( ( client, server ) ) =
       setup[PersistedKVDBNodeRequest,PersistedKVDBNodeResponse]( localHost, localPort, remoteHost, remotePort )( true )
     ( client, server )
-  }  
+  }
 
   def stdBiLink(
     localHost : String = serverHostName, localPort : Int = serverPort,
-    remoteHostsNPorts : List[(String,Int)] = clientHosts
+    remoteHostsNPorts : List[(String,Int)] = clientHostsNPorts
   ) : List[( StdEvaluationRequestChannel, StdEvaluationRequestChannel )] = {
     for( ( remoteHost, remotePort ) <- remoteHostsNPorts )
     yield {
